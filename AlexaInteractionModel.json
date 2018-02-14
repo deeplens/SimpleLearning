@@ -1,0 +1,76 @@
+{
+  "languageModel": {
+    "intents": [
+      {
+        "name": "AMAZON.CancelIntent",
+        "samples": []
+      },
+      {
+        "name": "AMAZON.HelpIntent",
+        "samples": []
+      },
+      {
+        "name": "AMAZON.StopIntent",
+        "samples": []
+      },
+      {
+        "name": "GetCurrentStateIntent",
+        "samples": [
+          "What's the current state",
+          "what state is deep lens in",
+          "what's going on with deep lens",
+          "What's the current status",
+          "What is the current status of deep lens",
+          "the current status"
+        ],
+        "slots": []
+      },
+      {
+        "name": "StartDetectionIntent",
+        "samples": [
+          "Start recognition",
+          "Begin recognition",
+          "Start detection",
+          "Begin detection",
+          "Turn on detection",
+          "turn on recognition"
+        ],
+        "slots": []
+      },
+      {
+        "name": "StartTrainingIntent",
+        "samples": [
+          "Start training",
+          "begin training",
+          "kick off training",
+          "to start training"
+        ],
+        "slots": []
+      }
+    ],
+    "invocationName": "deep lens"
+  },
+  "prompts": [
+    {
+      "id": "Confirm.Intent-StartTrainingIntent",
+      "variations": [
+        {
+          "type": "PlainText",
+          "value": "Do you want me to tell deep lens to start training"
+        }
+      ]
+    }
+  ],
+  "dialog": {
+    "intents": [
+      {
+        "name": "StartTrainingIntent",
+        "confirmationRequired": true,
+        "prompts": {
+          "confirmation": "Confirm.Intent-StartTrainingIntent"
+        },
+        "slots": []
+      }
+    ]
+  }
+}
