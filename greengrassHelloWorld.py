@@ -14,7 +14,6 @@ import boto3
 from botocore.session import Session
 import csv
 
-
 json_string = '{"0": "tench, Tinca tinca", \
 	"1": "goldfish, Carassius auratus", \
 	"2": "great white shark, white shark, man-eater, man-eating shark, Carcharodon carcharias", \
@@ -1015,40 +1014,43 @@ json_string = '{"0": "tench, Tinca tinca", \
 	"997": "bolete", \
 	"998": "ear, spike, capitulum", \
 	"999": "toilet tissue, toilet paper, bathroom tissue"}'
-	 
+
 parsed_json = json.loads(json_string)
 
 ret, frame = awscam.getLastFrame()
-ret,jpeg = cv2.imencode('.jpg', frame) 
+ret, jpeg = cv2.imencode('.jpg', frame)
 Write_To_FIFO = True
+
+
 class FIFO_Thread(Thread):
     def __init__(self):
         ''' Constructor. '''
         Thread.__init__(self)
- 
+
     def run(self):
         fifo_path = "/tmp/results.mjpeg"
         if not os.path.exists(fifo_path):
             os.mkfifo(fifo_path)
-        f = open(fifo_path,'w')
+        f = open(fifo_path, 'w')
         client.publish(topic=iotTopic, payload="Opened Pipe")
         while Write_To_FIFO:
             try:
                 f.write(jpeg.tobytes())
             except IOError as e:
-                continue  
+                continue
 
 
 # Creating a greengrass core sdk client
 client = greengrasssdk.client('iot-data')
 
-# The information exchanged between IoT and clould has 
+# The information exchanged between IoT and clould has
 # a topic and a message body.
 # This is the topic that this code uses to send messages to cloud
 iotTopic = '$aws/things/{}/infer'.format(os.environ['AWS_IOT_THING_NAME'])
 
 # When deployed to a Greengrass core, this code will be executed immediately
 # as a long-lived lambda function.
+
 
 def greengrass_infinite_infer_run():
     try:
@@ -1058,11 +1060,12 @@ def greengrass_infinite_infer_run():
         results_thread.start()
 
         # Send a starting message to IoT console
-        client.publish(topic=iotTopic, payload="Hotdog or not inference starts now")
+        client.publish(topic=iotTopic,
+                       payload="Hotdog or not inference starts now")
 
         #session = Session()
         #s3 = session.create_client('s3')
-                        
+
         # Load model to GPU (use {"GPU": 0} for CPU)
         mcfg = {"GPU": 1}
         model = awscam.Model(artifact_file, mcfg)
@@ -1072,16 +1075,14 @@ def greengrass_infinite_infer_run():
         if ret == False:
             raise Exception("Failed to get frame from the stream")
 
-
-
-        numFrames = 0;
+        numFrames = 0
         doInfer = True
         csv_data = ""
         t_end = time.time() + 20
-        
+
         #while doInfer:
         while time.time() < t_end:
-            # Get a frame from the video stream 
+            # Get a frame from the video stream
             ret, frame = awscam.getLastFrame()
 
             # Raise an exception if failing to get a frame
@@ -1096,25 +1097,25 @@ def greengrass_infinite_infer_run():
 
             outputProcessed = model.parseResult(modelType, inferOutput)
             results = outputProcessed[modelType]
-            
+
             prob = ""
             #tops = results[modelType][0:5]
-            
+
             for top in results[0:5]:
-                prob = str(prob) + str(top['label']) + ": " + str(top['prob'] * 100) + parsed_json[str(top['label'])] + "\n"
-            
+                prob = str(prob) + str(top['label']) + ": " + str(
+                    top['prob'] * 100) + parsed_json[str(top['label'])] + "\n"
+
             client.publish(topic=iotTopic, payload=prob)
-                    
-                    
-            matchingObjects = ""       
+
+            matchingObjects = ""
             prob_hotdog = 0
             font = cv2.FONT_HERSHEY_SIMPLEX
             global jpeg
-            ret,jpeg = cv2.imencode('.jpg', frame)
-            
+            ret, jpeg = cv2.imencode('.jpg', frame)
+
             session = Session()
             s3 = session.create_client('s3')
-           
+
             # Here we get the state of Simple Learning. The states are:
             #
             #  Idle Requested
@@ -1124,9 +1125,9 @@ def greengrass_infinite_infer_run():
             #  Training Completed
             #  Detection Requested
             #  Detection Started
-            #  
-            #  And then back to Idle again when detection is no longer required. 
-            #  
+            #
+            #  And then back to Idle again when detection is no longer required.
+            #
             #  This functon reads the S3 bucket to obtain 'Requested' states and replies to the S3 bucket with 'Started' and 'Completed' states.
             #  The exception here is idle, where it is requested by setting the S3 bucket (with Alexa) and this module sets it to idle. This function
             #  keeps looping, of course, waiting for another 'Requested' state.
@@ -1135,25 +1136,25 @@ def greengrass_infinite_infer_run():
             #
             #  And of coure, the query "Alexa - Ask Deep Lens what the recognition threshold is set to"
             #
-            #  
-            s3_state = boto3.resource('s3') 
+            #
+            s3_state = boto3.resource('s3')
             bucket = s3_state.Bucket('your-bucket')
             bucketString = 'your-bucket'
-            
+
             trainingSecondsDefault = 60
-            
+
             rootKey = 'deeplens/simplelearning/'
             baseKey = rootKey + 'admin/'
-            currentStateKey            = baseKey + 'state/currentstate.txt'
-            requestedStateKey          = baseKey + 'state/requestedstate.txt'
-            trainingResultsKey         = baseKey + 'training/trainingresults.txt'
-            trainingStartTimeKey       = baseKey + 'training/trainingstarttime.txt'
-            trainingSecondsKey         = baseKey + 'training/trainingseconds.txt'
+            currentStateKey = baseKey + 'state/currentstate.txt'
+            requestedStateKey = baseKey + 'state/requestedstate.txt'
+            trainingResultsKey = baseKey + 'training/trainingresults.txt'
+            trainingStartTimeKey = baseKey + 'training/trainingstarttime.txt'
+            trainingSecondsKey = baseKey + 'training/trainingseconds.txt'
             trainingMatchingObjectsKey = baseKey + 'training/matchingobjects.txt'
-            
+
             imagesKey = rootKey + 'images/'
             #client.publish(topic=iotTopic, payload="1")
-            # Check if the current state file exists. If so, then read it. If not, then set current state to idle and write to the currentstate file.            
+            # Check if the current state file exists. If so, then read it. If not, then set current state to idle and write to the currentstate file.
             objs = list(bucket.objects.filter(Prefix=currentStateKey))
             #client.publish(topic=iotTopic, payload="1dd")
             if len(objs) > 0 and objs[0].key == currentStateKey:
@@ -1167,7 +1168,9 @@ def greengrass_infinite_infer_run():
                 # Does not exist. So set the current state to 'idle'
                 #client.publish(topic=iotTopic, payload="before write to currentStateKey")
                 #resp = s3.put_object(Body="Idle", Bucket=bucket, Key=currentStateKey)
-                resp = s3.put_object(Body='Idle', Bucket=bucketString, Key=currentStateKey)
+                resp = s3.put_object(Body='Idle',
+                                     Bucket=bucketString,
+                                     Key=currentStateKey)
                 currentState = "Idle"
                 client.publish(topic=iotTopic, payload="1b")
                 # Also, since the currentstate.txt file does not exist, it indicates it is the first time using this bucket. So let's set up some admin
@@ -1178,25 +1181,33 @@ def greengrass_infinite_infer_run():
             #client.publish(topic=iotTopic, payload="2")
             if len(objs) > 0 and objs[0].key == trainingSecondsKey:
                 # Exists!
-                data = s3.get_object(Bucket=bucketString, Key=trainingSecondsKey)
+                data = s3.get_object(Bucket=bucketString,
+                                     Key=trainingSecondsKey)
                 trainingSeconds = data['Body'].read()
             else:
                 # Does not exist. So set trainingSeconds to a default of 60 seconds and write it back to the S3 bucket.
-                trainingSeconds = trainingSecondsDefault;
-                client.publish(topic=iotTopic, payload="About to write trainingsecondskey")
-                resp = s3.put_object(Body='60', Bucket=bucketString, Key=trainingSecondsKey)
-                client.publish(topic=iotTopic, payload="After trainingsecondskey")
-           
-            
+                trainingSeconds = trainingSecondsDefault
+                client.publish(topic=iotTopic,
+                               payload="About to write trainingsecondskey")
+                resp = s3.put_object(Body='60',
+                                     Bucket=bucketString,
+                                     Key=trainingSecondsKey)
+                client.publish(topic=iotTopic,
+                               payload="After trainingsecondskey")
+
             # Now see if there is a requested state
             # requestedStateKey = 'deeplens/simplelearning/admin/state/requestedstate.txt'
             objs = list(bucket.objects.filter(Prefix=requestedStateKey))
             if len(objs) > 0 and objs[0].key == requestedStateKey:
                 # Exists!
-                client.publish(topic=iotTopic, payload="Requested state exists")
-                data = s3.get_object(Bucket=bucketString, Key=requestedStateKey)
+                client.publish(topic=iotTopic,
+                               payload="Requested state exists")
+                data = s3.get_object(Bucket=bucketString,
+                                     Key=requestedStateKey)
                 requestedState = data['Body'].read()
-                client.publish(topic=iotTopic, payload="Requested state read as: "+requestedState)
+                client.publish(topic=iotTopic,
+                               payload="Requested state read as: " +
+                               requestedState)
 
                 # At this point, we have a requested state.
                 # Here are all the possible states:
@@ -1210,96 +1221,150 @@ def greengrass_infinite_infer_run():
                 #  Detection Started
                 #
                 # We respond to the three requested states and set the current state. State is managed in the two state files in the S3 bucket.
-                # 
-                # If the requested state is "Training Requested", then delete the existing training results file, delete the requestedstate.txt file, 
+                #
+                # If the requested state is "Training Requested", then delete the existing training results file, delete the requestedstate.txt file,
                 # set the current state to "Training Started" and write that text to the currentstate.txt file.
                 if (requestedState == "Training Requested"):
-                    client.publish(topic=iotTopic, payload="Processing Training Requested")
+                    client.publish(topic=iotTopic,
+                                   payload="Processing Training Requested")
 
-                    resp = s3.put_object(Body=' ', Bucket=bucketString, Key=trainingResultsKey)   # Overwrite whatever is in the training results file.
-                    client.publish(topic=iotTopic, payload="About to delete requested state file")
+                    resp = s3.put_object(
+                        Body=' ', Bucket=bucketString, Key=trainingResultsKey
+                    )  # Overwrite whatever is in the training results file.
+                    client.publish(
+                        topic=iotTopic,
+                        payload="About to delete requested state file")
 
-                    resp = s3.delete_object(Bucket=bucketString, Key=requestedStateKey)           # Delete the requested state file.
+                    resp = s3.delete_object(
+                        Bucket=bucketString, Key=requestedStateKey
+                    )  # Delete the requested state file.
                     currentState = "Training Started"
-                    client.publish(topic=iotTopic, payload="About to write current state file")
+                    client.publish(topic=iotTopic,
+                                   payload="About to write current state file")
 
-                    resp = s3.put_object(Body=currentState, Bucket=bucketString, Key=currentStateKey)
-                    client.publish(topic=iotTopic, payload="About to write training start time.")
+                    resp = s3.put_object(Body=currentState,
+                                         Bucket=bucketString,
+                                         Key=currentStateKey)
+                    client.publish(
+                        topic=iotTopic,
+                        payload="About to write training start time.")
 
-                    resp = s3.put_object(Body=str(datetime.datetime.now()), Bucket=bucketString, Key=trainingStartTimeKey)
-                    client.publish(topic=iotTopic, payload="Done with writing training start time.")
-                    
+                    resp = s3.put_object(Body=str(datetime.datetime.now()),
+                                         Bucket=bucketString,
+                                         Key=trainingStartTimeKey)
+                    client.publish(
+                        topic=iotTopic,
+                        payload="Done with writing training start time.")
+
                 # If the requested state is "Detection Requested", then set the current state to detection started, write "Detection Started" to the currentstate.txt file.
                 # Delete the requestedstate.txt file.
                 # Stop writing detections to the training file. Instead, compare new detections against the background training data and eliminate those already in the file.
                 if (requestedState == "Detection Requested"):
-                    resp = s3.delete_object(Bucket=bucketString, Key=requestedStateKey)           # Delete the requested state file.
+                    resp = s3.delete_object(
+                        Bucket=bucketString, Key=requestedStateKey
+                    )  # Delete the requested state file.
                     currentState = "Detection Started"
-                    resp = s3.put_object(Body=currentState, Bucket=bucketString, Key=currentStateKey)
-                
+                    resp = s3.put_object(Body=currentState,
+                                         Bucket=bucketString,
+                                         Key=currentStateKey)
+
                 # If the requested state is "Idle Requested", then set the current state to idle, delete the requestedstate.txt file, and write "Idle" to the currentstate file.
                 if (requestedState == "Idle Requested"):
-                    resp = s3.delete_object(Bucket=bucketString, Key=requestedStateKey)           # Delete the requested state file.
+                    resp = s3.delete_object(
+                        Bucket=bucketString, Key=requestedStateKey
+                    )  # Delete the requested state file.
                     currentState = "Idle"
-                    resp = s3.put_object(Body=currentState, Bucket=bucketString, Key=currentStateKey)
-            
+                    resp = s3.put_object(Body=currentState,
+                                         Bucket=bucketString,
+                                         Key=currentStateKey)
+
                 # If Training Started is the current state we test if the time > the trainingstarttime + trainingseconds. If so, then we set the current state to
-                # "Training Completed" and write this to the currentstate.txt file. Both the training completed and idle states skip the code execution below. 
+                # "Training Completed" and write this to the currentstate.txt file. Both the training completed and idle states skip the code execution below.
 
             # Now that we have handled any state updates, let's execute based on the current state.
             if (currentState == "Training Started"):
                 # Get the current list of matching objects from previous executions in this training cycle.
                 matchingObjects = ""
-                objs = list(bucket.objects.filter(Prefix=trainingMatchingObjectsKey))
+                objs = list(
+                    bucket.objects.filter(Prefix=trainingMatchingObjectsKey))
                 if len(objs) > 0 and objs[0].key == trainingMatchingObjectsKey:
                     # Exists!
-                    data = s3.get_object(Bucket=bucketString, Key=trainingMatchingObjectsKey)
+                    data = s3.get_object(Bucket=bucketString,
+                                         Key=trainingMatchingObjectsKey)
                     matchingObjects = data['Body'].read()
 
-                client.publish(topic=iotTopic, payload="Matching Objects: " + str(matchingObjects))
+                client.publish(topic=iotTopic,
+                               payload="Matching Objects: " +
+                               str(matchingObjects))
 
                 for obj in results[0:4]:
                     if obj['prob'] > 0.5:
                         if str(obj['label']) not in matchingObjects:
                             if len(matchingObjects) > 0:
                                 matchingObjects = matchingObjects + ", "
-                            matchingObjects = matchingObjects + str(obj['label'])
-                            client.publish(topic=iotTopic, payload="New Matching Objects: " + str(matchingObjects))
-                            resp = s3.put_object(Body=str(matchingObjects), Bucket=bucketString, Key=trainingMatchingObjectsKey)
-                            client.publish(topic=iotTopic, payload="Updated training key")
+                            matchingObjects = matchingObjects + str(
+                                obj['label'])
+                            client.publish(topic=iotTopic,
+                                           payload="New Matching Objects: " +
+                                           str(matchingObjects))
+                            resp = s3.put_object(
+                                Body=str(matchingObjects),
+                                Bucket=bucketString,
+                                Key=trainingMatchingObjectsKey)
+                            client.publish(topic=iotTopic,
+                                           payload="Updated training key")
                 client.publish(topic=iotTopic, payload="Finished the obj loop")
-                            
+
             if (currentState == "Detection Started"):
                 # Get the current list of matching objects from previous executions in this training cycle.
                 matchingObjects = ""
-                objs = list(bucket.objects.filter(Prefix=trainingMatchingObjectsKey))
+                objs = list(
+                    bucket.objects.filter(Prefix=trainingMatchingObjectsKey))
                 if len(objs) > 0 and objs[0].key == trainingMatchingObjectsKey:
                     # Exists!
-                    data = s3.get_object(Bucket=bucketString, Key=trainingMatchingObjectsKey)
+                    data = s3.get_object(Bucket=bucketString,
+                                         Key=trainingMatchingObjectsKey)
                     matchingObjects = data['Body'].read()
                 else:
                     currentState = "Deep Lens detection cannot be performed until training is done first. Please issue the command - Alexa, tell deep lens to start training."
-                    resp = s3.put_object(Body=currentState, Bucket=bucketString, Key=currentStateKey)
-            
-                client.publish(topic=iotTopic, payload="Detection Matching Objects: " + str(matchingObjects))
-            
-            
+                    resp = s3.put_object(Body=currentState,
+                                         Bucket=bucketString,
+                                         Key=currentStateKey)
+
+                client.publish(topic=iotTopic,
+                               payload="Detection Matching Objects: " +
+                               str(matchingObjects))
+
                 for obj in results[0:4]:
                     if obj['prob'] > 0.5:
                         if str(obj['label']) not in matchingObjects:
                             # We have detected an object. It's time to send an alert.
-                            client.publish(topic=iotTopic, payload="We have a Detection!! " + str(obj['label']))
-                            file_name = imagesKey + 'image-'+time.strftime("%Y%m%d-%H%M%S")+'.jpg'
-                            encode_param=[int(cv2.IMWRITE_JPEG_QUALITY),90]
-                            _, jpg_data = cv2.imencode('.jpg', frame, encode_param)
-                    
-                            response = s3.put_object(Body=jpg_data.tostring(),Bucket='deeplens-sagemaker-daniel-brennan',Key=file_name)
-                            image_url = 'https://s3.amazonaws.com/deeplens-sagemaker-daniel-brennan/'+file_name
-    
-    
+                            client.publish(topic=iotTopic,
+                                           payload="We have a Detection!! " +
+                                           str(obj['label']))
+                            file_name = imagesKey + 'image-' + time.strftime(
+                                "%Y%m%d-%H%M%S") + '.jpg'
+                            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+                            _, jpg_data = cv2.imencode('.jpg', frame,
+                                                       encode_param)
+
+                            response = s3.put_object(
+                                Body=jpg_data.tostring(),
+                                Bucket='deeplens-sagemaker-daniel-brennan',
+                                Key=file_name)
+                            image_url = 'https://s3.amazonaws.com/deeplens-sagemaker-daniel-brennan/' + file_name
+
                             # Now we construct a JSON structure with the fields required for the Simple Learning Notifier.
-                            data = { "key": "DeepLens Simple Learning", "Label1": parsed_json[str(results[0]['label'])], "Obj1Prob": str(results[0]['prob'] * 100), "Label2": parsed_json[str(results[1]['label'])], "Obj2Prob": str(results[1]['prob'] * 100), "URL": image_url}
-                            
+                            data = {
+                                "key": "DeepLens Simple Learning",
+                                "Label1":
+                                parsed_json[str(results[0]['label'])],
+                                "Obj1Prob": str(results[0]['prob'] * 100),
+                                "Label2":
+                                parsed_json[str(results[1]['label'])],
+                                "Obj2Prob": str(results[1]['prob'] * 100),
+                                "URL": image_url
+                            }
                             '''dat['key'] = "DeepLens Simple Learning"
                             dat['Label1'] = parsed_json[str(results[0]['label'])]
                             dat['Obj1Prob'] = str(results[0]['prob'] * 100)
@@ -1308,8 +1373,7 @@ def greengrass_infinite_infer_run():
                             dat['URL'] = image_url'''
                             json_output = json.dumps(data)
                             client.publish(topic=iotTopic, payload=json_output)
-                          
-                            
+
     except Exception as e:
         msg = "Test failed: " + str(e)
         client.publish(topic=iotTopic, payload=msg)
